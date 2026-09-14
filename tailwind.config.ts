@@ -8,6 +8,11 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Kanit', 'Prompt', 'sans-serif'],
+        kanit: ['Kanit', 'sans-serif'],
+        prompt: ['Prompt', 'sans-serif'],
+      },
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",
@@ -23,26 +28,15 @@ const config: Config = {
           800: '#075985',
           900: '#0C4A6E',
         },
-        cycle: {
-          menstrual: "#F43F5E",       // Soft Coral/Rose
-          "menstrual-light": "#FFE4E6",
-          fertile: "#10B981",         // Mint / Soft Emerald
-          "fertile-light": "#ECFDF5",
-          ovulation: "#8B5CF6",       // Violet / Lavender
-          "ovulation-light": "#F5F3FF",
-          pms: "#F59E0B",             // Warm Amber / Peach
-          "pms-light": "#FFFBEB",
-          follicular: "#0EA5E9",      // Serene Sky Blue
-          "follicular-light": "#E0F2FE"
-        }
       },
       borderRadius: {
         '2xl': '1rem',
         '3xl': '1.5rem',
+        '4xl': '2rem',
       },
       boxShadow: {
-        'blue-glow': '0 10px 25px -5px rgba(14, 165, 233, 0.15), 0 8px 10px -6px rgba(14, 165, 233, 0.1)',
-        'soft': '0 4px 20px -2px rgba(15, 23, 42, 0.05)',
+        'clean': '0 4px 20px -2px rgba(15, 23, 42, 0.04), 0 2px 6px -1px rgba(15, 23, 42, 0.02)',
+        'elevate': '0 12px 30px -4px rgba(15, 23, 42, 0.08), 0 4px 12px -2px rgba(15, 23, 42, 0.03)',
       }
     },
   },

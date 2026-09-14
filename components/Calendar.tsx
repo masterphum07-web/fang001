@@ -13,7 +13,7 @@ import {
   isSameMonth, 
   isToday 
 } from 'date-fns';
-import { ChevronLeft, ChevronRight, Star, Droplet } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Star, Droplet, Calendar as CalendarIcon } from 'lucide-react';
 import { DailyPhaseInfo, DailyLog } from '@/lib/types/cycle';
 import { formatDateSafe } from '@/lib/utils/cycle-calculator';
 
@@ -49,77 +49,77 @@ export const Calendar: React.FC<CalendarProps> = ({
 
   const calendarDays = eachDayOfInterval({ start: startDate, end: endDate });
 
-  const weekDayHeaders = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
-
-  // สีและสไตล์ของแต่ละ Phase ในโทนที่ดูง่าย สบายตา
-  const getDayStyle = (phaseInfo?: DailyPhaseInfo, isCurrentMonth: boolean = true) => {
-    if (!phaseInfo || !isCurrentMonth) {
-      return 'text-slate-300 bg-slate-50/40 border-transparent';
-    }
-
-    if (phaseInfo.isPeriod) {
-      return 'bg-rose-50 text-rose-800 border-rose-200 font-semibold hover:bg-rose-100';
-    }
-    if (phaseInfo.isOvulation) {
-      return 'bg-purple-50 text-purple-900 border-purple-300 font-bold hover:bg-purple-100';
-    }
-    if (phaseInfo.isFertile) {
-      return 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100';
-    }
-    if (phaseInfo.isPMS) {
-      return 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100';
-    }
-    if (phaseInfo.phase === 'follicular') {
-      return 'bg-sky-50/80 text-sky-800 border-sky-200 hover:bg-sky-100';
-    }
-    return 'bg-slate-50/70 text-slate-700 border-slate-100 hover:bg-slate-100';
-  };
+  const weekDayHeaders = [
+    { label: 'อาทิตย์', short: 'อา.', isWeekend: true },
+    { label: 'จันทร์', short: 'จ.', isWeekend: false },
+    { label: 'อังคาร', short: 'อ.', isWeekend: false },
+    { label: 'พุธ', short: 'พ.', isWeekend: false },
+    { label: 'พฤหัสบดี', short: 'พฤ.', isWeekend: false },
+    { label: 'ศุกร์', short: 'ศ.', isWeekend: false },
+    { label: 'เสาร์', short: 'ส.', isWeekend: true },
+  ];
 
   return (
-    <div className="bg-white rounded-3xl p-4 sm:p-6 border border-sky-100 shadow-sm">
-      {/* Calendar Header */}
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-2 sm:gap-3">
-          <h3 className="text-lg sm:text-xl font-bold text-slate-800 capitalize tracking-tight">
-            {format(currentMonth, 'MMMM yyyy')}
-          </h3>
+    <div className="bg-white rounded-3xl sm:rounded-[2rem] p-5 sm:p-7 border border-slate-200 shadow-sm">
+      {/* Calendar Top Header: Title & Navigation (Clean like screenshot) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-slate-100">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-600">
+            <CalendarIcon className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-xl sm:text-2xl font-black text-slate-900 capitalize tracking-tight">
+              {format(currentMonth, 'MMMM yyyy')}
+            </h3>
+            <p className="text-xs text-slate-400 font-medium">
+              คลิกเพื่อดูรายละเอียด • ดับเบิ้ลคลิกเพื่อจดบันทึกอาการ
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 self-end sm:self-auto">
           <button
             onClick={handleToday}
-            className="text-xs px-3 py-1 rounded-full bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 transition-colors font-medium"
+            className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors"
           >
             วันนี้
           </button>
-        </div>
-
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={handlePrevMonth}
-            className="p-1.5 rounded-xl border border-slate-200 hover:bg-sky-50 text-slate-600 transition-colors"
-            title="เดือนก่อนหน้า"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <button
-            onClick={handleNextMonth}
-            className="p-1.5 rounded-xl border border-slate-200 hover:bg-sky-50 text-slate-600 transition-colors"
-            title="เดือนถัดไป"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
+          <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden bg-slate-50">
+            <button
+              onClick={handlePrevMonth}
+              className="p-2 hover:bg-slate-200 text-slate-600 transition-colors border-r border-slate-200"
+              title="เดือนก่อนหน้า"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              onClick={handleNextMonth}
+              className="p-2 hover:bg-slate-200 text-slate-600 transition-colors"
+              title="เดือนถัดไป"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Weekday Labels */}
-      <div className="grid grid-cols-7 gap-1.5 sm:gap-2 mb-2 text-center text-xs font-semibold text-slate-400">
-        {weekDayHeaders.map((day, i) => (
-          <div key={day} className={i === 0 ? 'text-rose-400' : ''}>
-            {day}
+      {/* Weekday Column Headers */}
+      <div className="grid grid-cols-7 gap-2 mb-2.5 text-center">
+        {weekDayHeaders.map((day) => (
+          <div
+            key={day.label}
+            className={`text-xs sm:text-sm font-bold py-1.5 ${
+              day.isWeekend ? 'text-rose-500' : 'text-slate-500'
+            }`}
+          >
+            <span className="hidden sm:inline">{day.label}</span>
+            <span className="sm:hidden">{day.short}</span>
           </div>
         ))}
       </div>
 
-      {/* Days Grid */}
-      <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+      {/* Days Grid - Clean, Spacious, Not Cluttered, Crisp Highlights */}
+      <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5">
         {calendarDays.map((day) => {
           const dateStr = formatDateSafe(day);
           const isCurrMonth = isSameMonth(day, currentMonth);
@@ -128,57 +128,90 @@ export const Calendar: React.FC<CalendarProps> = ({
           const isTodayDate = isToday(day);
           const loggedData = dailyLogs[dateStr];
 
+          // เช็คประเภทไฮไลท์
+          const isPeriod = phaseInfo?.isPeriod;
+          const isOvulation = phaseInfo?.isOvulation;
+          const isFertile = phaseInfo?.isFertile && !isOvulation;
+          const isPMS = phaseInfo?.isPMS;
+
+          // กำหนดสไตล์พื้นหลังตามความสำคัญ (เรียบง่าย สบายตา ไม่ลายตา)
+          let cellBg = 'bg-white hover:bg-slate-50/80 border-slate-200/80';
+          if (isPeriod) {
+            cellBg = 'bg-rose-50/70 hover:bg-rose-100/70 border-rose-200 text-rose-950';
+          } else if (isOvulation) {
+            cellBg = 'bg-purple-50/70 hover:bg-purple-100/70 border-purple-200 text-purple-950';
+          } else if (isPMS) {
+            cellBg = 'bg-amber-50/60 hover:bg-amber-100/60 border-amber-200 text-amber-950';
+          } else if (isFertile) {
+            cellBg = 'bg-emerald-50/50 hover:bg-emerald-100/50 border-emerald-200 text-emerald-950';
+          }
+
           return (
             <div
               key={dateStr}
               onClick={() => onSelectDate(dateStr)}
               onDoubleClick={() => onOpenLogModal(dateStr)}
-              className={`min-h-[64px] sm:min-h-[82px] p-1.5 sm:p-2 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between relative group ${getDayStyle(
-                phaseInfo,
-                isCurrMonth
-              )} ${
+              className={`min-h-[70px] sm:min-h-[92px] p-2 sm:p-2.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between relative select-none ${cellBg} ${
                 isSelected
-                  ? 'ring-2 ring-sky-500 shadow-md scale-[1.02] z-10 bg-white'
+                  ? 'ring-2 ring-sky-500 shadow-md border-sky-400 scale-[1.02] z-10'
                   : 'hover:scale-[1.01]'
-              } ${!isCurrMonth ? 'opacity-30 pointer-events-none' : ''}`}
+              } ${!isCurrMonth ? 'opacity-25 pointer-events-none' : ''}`}
             >
-              {/* Day Number and Badges */}
+              {/* Top Row: Date Number and Today indicator */}
               <div className="flex items-center justify-between">
                 <span
-                  className={`text-xs sm:text-sm font-semibold rounded-full w-6 h-6 flex items-center justify-center ${
+                  className={`text-sm sm:text-base font-extrabold rounded-xl w-7 h-7 flex items-center justify-center transition-colors ${
                     isTodayDate
-                      ? 'bg-sky-600 text-white shadow-sm'
-                      : 'text-slate-700'
+                      ? 'bg-slate-900 text-white shadow-sm'
+                      : isSelected
+                      ? 'text-sky-600'
+                      : 'text-slate-800'
                   }`}
                 >
                   {format(day, 'd')}
                 </span>
 
-                {/* Status Badges */}
-                <div className="flex items-center gap-0.5">
-                  {phaseInfo?.isOvulation && (
-                    <span title="วันไข่ตก">
-                      <Star className="w-3.5 h-3.5 fill-purple-600 text-purple-600 animate-pulse" />
+                {/* Micro Icon Indicators */}
+                <div className="flex items-center gap-1">
+                  {isOvulation && (
+                    <span className="w-5 h-5 rounded-full bg-purple-100 flex items-center justify-center text-purple-700" title="วันไข่ตก">
+                      <Star className="w-3 h-3 fill-purple-600" />
                     </span>
                   )}
-                  {phaseInfo?.isPeriod && (
-                    <span title="ประจำเดือน">
-                      <Droplet className="w-3 h-3 fill-rose-500 text-rose-500" />
+                  {isPeriod && (
+                    <span className="w-5 h-5 rounded-full bg-rose-100 flex items-center justify-center text-rose-600" title="มีประจำเดือน">
+                      <Droplet className="w-3 h-3 fill-rose-600" />
                     </span>
                   )}
                 </div>
               </div>
 
-              {/* Middle Mini Tags for Desktop */}
-              <div className="hidden sm:block text-[10px] leading-tight font-medium truncate">
-                {phaseInfo?.isPeriod && 'มีประจำเดือน'}
-                {phaseInfo?.isOvulation && '✨ วันไข่ตก'}
-                {phaseInfo?.isFertile && !phaseInfo.isOvulation && 'โอกาสท้องสูง'}
-                {phaseInfo?.isPMS && 'ช่วง PMS'}
+              {/* Middle Row: Clean, Bold, Crisp Highlight Badges (ไฮไลท์ชัดเจน ไม่รกตา) */}
+              <div className="my-1">
+                {isPeriod && (
+                  <span className="inline-block text-[11px] font-extrabold px-2 py-0.5 rounded-lg bg-rose-500 text-white shadow-2xs">
+                    เมนมา
+                  </span>
+                )}
+                {isOvulation && (
+                  <span className="inline-block text-[11px] font-extrabold px-2 py-0.5 rounded-lg bg-purple-600 text-white shadow-2xs">
+                    วันไข่ตก
+                  </span>
+                )}
+                {isFertile && (
+                  <span className="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    โอกาสท้องสูง
+                  </span>
+                )}
+                {isPMS && (
+                  <span className="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-200">
+                    ช่วง PMS
+                  </span>
+                )}
               </div>
 
-              {/* Logged Symptoms & Flow Dots */}
-              <div className="flex items-center gap-1 mt-0.5">
+              {/* Bottom Row: Symptom & Note Dots */}
+              <div className="flex items-center gap-1">
                 {loggedData?.flowLevel && loggedData.flowLevel > 0 ? (
                   <span className="flex gap-0.5">
                     {Array.from({ length: Math.min(loggedData.flowLevel, 3) }).map((_, idx) => (
@@ -191,8 +224,8 @@ export const Calendar: React.FC<CalendarProps> = ({
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500" title="มีบันทึกอาการ" />
                 ) : null}
 
-                {loggedData?.mood ? (
-                  <span className="w-1.5 h-1.5 rounded-full bg-sky-500" title="มีบันทึกอารมณ์" />
+                {loggedData?.notes ? (
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-500" title="มีโน้ตประจำวัน" />
                 ) : null}
               </div>
             </div>
@@ -200,35 +233,34 @@ export const Calendar: React.FC<CalendarProps> = ({
         })}
       </div>
 
-      {/* Elegant Legend */}
-      <div className="mt-6 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
-        <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-          <div className="flex items-center gap-1.5">
-            <span className="w-3.5 h-3.5 rounded-md bg-rose-100 border border-rose-200" />
+      {/* Clean Legend Bar (เหมือนแถบฟิลเตอร์ในรูปตัวอย่าง) */}
+      <div className="mt-6 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <span className="text-slate-400 font-bold mr-1">สัญลักษณ์:</span>
+          
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 font-bold">
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
             <span>มีประจำเดือน</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-3.5 h-3.5 rounded-md bg-emerald-100 border border-emerald-200" />
+
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-purple-50 border border-purple-200 text-purple-700 font-bold">
+            <Star className="w-3 h-3 fill-purple-600 text-purple-600" />
+            <span>วันไข่ตก (โอกาสตั้งครรภ์สูงสุด)</span>
+          </div>
+
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
             <span>ช่วงเจริญพันธุ์</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-3.5 h-3.5 rounded-md bg-purple-100 border border-purple-300 flex items-center justify-center">
-              <Star className="w-2.5 h-2.5 fill-purple-600 text-purple-600" />
-            </span>
-            <span>วันไข่ตก</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-3.5 h-3.5 rounded-md bg-amber-100 border border-amber-200" />
+
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 font-bold">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
             <span>ช่วงก่อนเมนมา (PMS)</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-3.5 h-3.5 rounded-md bg-sky-100 border border-sky-200" />
-            <span>ช่วงสดชื่น (Follicular)</span>
           </div>
         </div>
 
-        <div className="text-[11px] text-slate-400 italic">
-          * ดับเบิ้ลคลิกที่วันเพื่อบันทึกอาการ
+        <div className="text-[11px] text-slate-400 font-medium">
+          * ดับเบิ้ลคลิกเพื่อจดอาการและระดับเลือด
         </div>
       </div>
     </div>

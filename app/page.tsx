@@ -65,7 +65,7 @@ export default function Home() {
 
   if (!profile || !summaryStats) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F6FAFE]">
+      <div className="min-h-screen flex items-center justify-center bg-[#FAF7F2]">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-sky-500" />
       </div>
     );
@@ -115,7 +115,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F6FAFE]">
+    <div className="min-h-screen flex flex-col bg-[#FAF7F2] font-['Kanit',sans-serif]">
       {/* Top Header */}
       <Header
         profile={profile}
@@ -125,7 +125,7 @@ export default function Home() {
       />
 
       {/* Main Content Dashboard */}
-      <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
         {/* Hero Status Banner */}
         <StatusBanner
           stats={summaryStats}
@@ -168,7 +168,7 @@ export default function Home() {
       </main>
 
       {/* Footer Note */}
-      <footer className="py-6 text-center text-xs text-sky-800/60 border-t border-sky-100">
+      <footer className="py-6 text-center text-xs text-slate-400 border-t border-slate-200">
         <p>สร้างด้วยความตั้งใจเพื่อดูแล {profile.name} 💙 • อิงหลักสูตินารีแพทย์ (ACOG)</p>
       </footer>
 
