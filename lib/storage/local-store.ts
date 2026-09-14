@@ -1,5 +1,5 @@
 import { UserProfile, CycleLog, DailyLog } from '@/lib/types/cycle';
-import { format, subDays } from 'date-fns';
+import { format, subDays, addDays } from 'date-fns';
 
 const STORAGE_KEYS = {
   PROFILE: 'cycle_tracker_profile',
@@ -7,21 +7,47 @@ const STORAGE_KEYS = {
   DAILY_LOGS: 'cycle_tracker_daily_logs',
 };
 
-// ข้อมูลเริ่มต้นสำหรับผู้ใช้ใหม่ (คำนวณวันรอบล่าสุดให้อยู่ในช่วง 12 วันก่อนหน้าเพื่อเห็นข้อมูลสวยงามทันที)
+// ข้อมูลตัวอย่างเริ่มต้น (มีวันเริ่มและวันหมดจริง)
 export const getDefaultProfile = (): UserProfile => {
   const today = new Date();
   const defaultLastPeriod = format(subDays(today, 12), 'yyyy-MM-dd');
 
   return {
     id: 'local-user-1',
-    name: 'หวานใจ',
-    partnerName: 'แฟนที่น่ารัก',
+    name: 'ฟาง',
+    partnerName: 'พุม',
     lineUserId: '',
     averageCycleLength: 28,
     averagePeriodLength: 5,
     lastPeriodStartDate: defaultLastPeriod,
-    mode: 'partner', // เริ่มต้นในโหมดแฟนดูแลเพื่อความเซอร์ไพรส์
+    mode: 'partner',
   };
+};
+
+export const getDefaultCycleLogs = (): CycleLog[] => {
+  const today = new Date();
+  const lastStart = subDays(today, 12);
+  const lastEnd = addDays(lastStart, 4); // 5 วัน
+  
+  const prevStart = subDays(lastStart, 28);
+  const prevEnd = addDays(prevStart, 3); // 4 วัน
+
+  return [
+    {
+      id: 'cycle-1',
+      startDate: format(lastStart, 'yyyy-MM-dd'),
+      endDate: format(lastEnd, 'yyyy-MM-dd'),
+      periodLength: 5,
+      notes: 'รอบล่าสุด',
+    },
+    {
+      id: 'cycle-2',
+      startDate: format(prevStart, 'yyyy-MM-dd'),
+      endDate: format(prevEnd, 'yyyy-MM-dd'),
+      periodLength: 4,
+      notes: 'รอบก่อนหน้า มา 4 วัน',
+    },
+  ];
 };
 
 export function loadProfile(): UserProfile {
@@ -46,14 +72,19 @@ export function saveProfile(profile: UserProfile): void {
 }
 
 export function loadCycleLogs(): CycleLog[] {
-  if (typeof window === 'undefined') return [];
+  if (typeof window === 'undefined') return getDefaultCycleLogs();
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.CYCLES);
-    if (!raw) return [];
-    return JSON.parse(raw);
+    if (!raw) {
+      const defaults = getDefaultCycleLogs();
+      localStorage.setItem(STORAGE_KEYS.CYCLES, JSON.stringify(defaults));
+      return defaults;
+    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : getDefaultCycleLogs();
   } catch (e) {
     console.error('Error loading cycle logs from localStorage', e);
-    return [];
+    return getDefaultCycleLogs();
   }
 }
 
@@ -69,6 +100,19 @@ export function saveCycleLog(newLog: CycleLog): CycleLog[] {
     return updated;
   } catch (e) {
     console.error('Error saving cycle log to localStorage', e);
+    return [];
+  }
+}
+
+export function deleteCycleLog(cycleId: string): CycleLog[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const existing = loadCycleLogs();
+    const updated = existing.filter((c) => c.id !== cycleId);
+    localStorage.setItem(STORAGE_KEYS.CYCLES, JSON.stringify(updated));
+    return updated;
+  } catch (e) {
+    console.error('Error deleting cycle log from localStorage', e);
     return [];
   }
 }

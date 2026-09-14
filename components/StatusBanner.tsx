@@ -2,7 +2,7 @@
 
 import React from 'react';
 import confetti from 'canvas-confetti';
-import { Sparkles, Droplet, Heart, Calendar, ShieldAlert } from 'lucide-react';
+import { Droplet, Heart, Sparkles, SlidersHorizontal, Check } from 'lucide-react';
 import { CycleSummaryStats } from '@/lib/utils/cycle-calculator';
 import { UserProfile } from '@/lib/types/cycle';
 
@@ -10,21 +10,35 @@ interface StatusBannerProps {
   stats: CycleSummaryStats;
   profile: UserProfile;
   onPeriodStartedToday: () => void;
+  onPeriodEndedToday: () => void;
+  onOpenPeriodRangeModal: () => void;
 }
 
 export const StatusBanner: React.FC<StatusBannerProps> = ({
   stats,
   profile,
   onPeriodStartedToday,
+  onPeriodEndedToday,
+  onOpenPeriodRangeModal,
 }) => {
-  const triggerConfetti = () => {
+  const handlePeriodStart = () => {
     confetti({
       particleCount: 70,
       spread: 60,
       origin: { y: 0.7 },
-      colors: ['#0EA5E9', '#38BDF8', '#818CF8', '#F43F5E']
+      colors: ['#F43F5E', '#FB7185', '#FDA4AF', '#F472B6'],
     });
     onPeriodStartedToday();
+  };
+
+  const handlePeriodEnd = () => {
+    confetti({
+      particleCount: 70,
+      spread: 60,
+      origin: { y: 0.7 },
+      colors: ['#38BDF8', '#0EA5E9', '#818CF8', '#10B981'],
+    });
+    onPeriodEndedToday();
   };
 
   const getPhaseColorBadge = (phase: string) => {
@@ -44,11 +58,11 @@ export const StatusBanner: React.FC<StatusBannerProps> = ({
 
   return (
     <div className="bg-white rounded-3xl sm:rounded-[2rem] border border-slate-200 shadow-sm relative overflow-hidden">
-      {/* Top Accent Bar (Inspired by the orange/accent bar in screenshot) */}
+      {/* Top Accent Bar */}
       <div className="h-2 w-full bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500" />
 
       <div className="p-6 sm:p-8">
-        {/* Giant Centered Headline in Chunky Kanit Font (Like "เก็บไฟล์เรียนโหดๆๆๆๆ" in screenshot) */}
+        {/* Headline */}
         <div className="text-center max-w-2xl mx-auto mb-6">
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight leading-snug">
             {profile.mode === 'partner' 
@@ -56,11 +70,11 @@ export const StatusBanner: React.FC<StatusBannerProps> = ({
               : `บันทึกรอบเดือน & สุขภาพของคุณ 🌷`}
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1.5">
-            คำนวณระยะร่างกายตามหลักวิทยาศาสตร์การแพทย์ (ACOG) พร้อมแจ้งเตือนผ่าน LINE OA
+            คำนวณตามหลักสูตินารีแพทย์ (ACOG) • บันทึกวันเริ่มและวันหมดตามจริงในแต่ละเดือน
           </p>
         </div>
 
-        {/* 3 Metric Cards Grid: Clean, High Contrast, Easy to Read */}
+        {/* 3 Metric Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-5">
           {/* Metric 1: Days until period */}
           <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-4 flex items-center gap-4">
@@ -100,29 +114,47 @@ export const StatusBanner: React.FC<StatusBannerProps> = ({
             </div>
           </div>
 
-          {/* Metric 3: Next Ovulation & Action */}
-          <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-4 flex items-center justify-between gap-3">
-            <div>
-              <span className="text-xs text-slate-400 font-semibold block">วันไข่ตกถัดไป</span>
-              <span className="text-sm font-bold text-purple-700">
-                อีก {stats.daysUntilOvulation} วัน
-              </span>
-              <span className="text-[11px] text-slate-500 block mt-0.5 font-medium">
-                โอกาสตั้งครรภ์: <b className="text-slate-700">{stats.pregnancyChance}</b>
-              </span>
+          {/* Metric 3: Quick Action (Start / End Date) */}
+          <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-4 flex flex-col justify-between gap-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-400 font-semibold">บันทึกวันเริ่ม-วันหมด:</span>
+              <button
+                type="button"
+                onClick={onOpenPeriodRangeModal}
+                className="text-[11px] font-bold text-sky-600 hover:text-sky-800 underline flex items-center gap-1"
+              >
+                <SlidersHorizontal className="w-3 h-3" />
+                <span>จัดการรอบ</span>
+              </button>
             </div>
-            <button
-              onClick={triggerConfetti}
-              className="px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-sm transition-all active:scale-95 shrink-0 flex items-center gap-1"
-              title="จดว่าเมนมาแล้ววันนี้"
-            >
-              <Droplet className="w-3.5 h-3.5 fill-white" />
-              <span>เมนมาแล้ว</span>
-            </button>
+
+            {stats.isCurrentlyBleeding ? (
+              <button
+                onClick={handlePeriodEnd}
+                className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white text-xs font-bold shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5"
+                title="บันทึกว่าประจำเดือนหมดแล้ววันนี้"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>✨ เมนหายแล้ววันนี้ (บันทึกวันหมด)</span>
+              </button>
+            ) : (
+              <button
+                onClick={handlePeriodStart}
+                className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white text-xs font-bold shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5"
+                title="บันทึกวันแรกที่มีประจำเดือน"
+              >
+                <Droplet className="w-3.5 h-3.5 fill-white" />
+                <span>🩸 เมนมาแล้ววันนี้ (บันทึกวันเริ่ม)</span>
+              </button>
+            )}
+
+            <div className="text-[10px] text-slate-400 text-center font-medium">
+              * แต่ละเดือนมาไม่เท่ากัน สามารถปรับวันได้ตลอด
+            </div>
           </div>
         </div>
 
-        {/* Highlight Tip Banner for Today */}
+        {/* Highlight Tip Banner */}
         <div className="bg-sky-50/60 border border-sky-100 rounded-2xl p-3.5 sm:p-4 flex items-start gap-3">
           <div className="p-2 rounded-xl bg-sky-500 text-white shrink-0 mt-0.5">
             <Heart className="w-4 h-4 fill-white" />

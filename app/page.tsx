@@ -7,12 +7,15 @@ import {
   loadDailyLogs, 
   saveDailyLog, 
   loadCycleLogs, 
-  saveCycleLog 
+  saveCycleLog,
+  deleteCycleLog
 } from '@/lib/storage/local-store';
 import { 
   calculateCyclePhases, 
   calculateSummaryStats, 
-  formatDateSafe 
+  formatDateSafe,
+  calculateAdaptivePeriodLength,
+  calculateAdaptiveCycleLength
 } from '@/lib/utils/cycle-calculator';
 import { UserProfile, DailyLog, CycleLog } from '@/lib/types/cycle';
 import { Header } from '@/components/Header';
@@ -22,32 +25,38 @@ import { DayDetailCard } from '@/components/DayDetailCard';
 import { PartnerCareCard } from '@/components/PartnerCareCard';
 import { DailyLogModal } from '@/components/DailyLogModal';
 import { CycleSettingsModal } from '@/components/CycleSettingsModal';
+import { PeriodRangeModal } from '@/components/PeriodRangeModal';
 
 export default function Home() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [cycleLogs, setCycleLogs] = useState<CycleLog[]>([]);
   const [dailyLogs, setDailyLogs] = useState<Record<string, DailyLog>>({});
   const [selectedDate, setSelectedDate] = useState<string>(() => formatDateSafe(new Date()));
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isPeriodRangeModalOpen, setIsPeriodRangeModalOpen] = useState(false);
   const [activeLogDate, setActiveLogDate] = useState<string>(() => formatDateSafe(new Date()));
 
   // โหลดข้อมูลเมื่อเปิดหน้าเว็บ
   useEffect(() => {
     const loadedProf = loadProfile();
+    const loadedCycles = loadCycleLogs();
     setProfile(loadedProf);
+    setCycleLogs(loadedCycles);
     setDailyLogs(loadDailyLogs());
   }, []);
 
-  // คำนวณ Phases และ Stats โดยอัตโนมัติเมื่อ profile เปลี่ยน
+  // คำนวณ Phases และ Stats โดยอิงตาม cycleLogs จริง (ไม่ล็อควัน!)
   const phaseMap = useMemo(() => {
     if (!profile) return new Map();
     return calculateCyclePhases(
       profile.lastPeriodStartDate,
       profile.averageCycleLength,
       profile.averagePeriodLength,
-      120
+      120,
+      cycleLogs
     );
-  }, [profile]);
+  }, [profile, cycleLogs]);
 
   const summaryStats = useMemo(() => {
     if (!profile) return null;
@@ -55,9 +64,10 @@ export default function Home() {
       new Date(),
       profile.lastPeriodStartDate,
       profile.averageCycleLength,
-      profile.averagePeriodLength
+      profile.averagePeriodLength,
+      cycleLogs
     );
-  }, [profile]);
+  }, [profile, cycleLogs]);
 
   const selectedPhaseInfo = useMemo(() => {
     return phaseMap.get(selectedDate);
@@ -77,23 +87,78 @@ export default function Home() {
     saveProfile(updated);
   };
 
+  // 🩸 วันแรกที่เมนมา (เริ่มรอบ)
   const handlePeriodStartedToday = () => {
     const todayStr = formatDateSafe(new Date());
+    
+    // สร้าง CycleLog ใหม่
+    const newCycle: CycleLog = {
+      id: `cycle-${Date.now()}`,
+      startDate: todayStr,
+      endDate: undefined,
+    };
+    const updatedCycles = saveCycleLog(newCycle);
+    setCycleLogs(updatedCycles);
+
+    // ปรับ lastPeriodStartDate ใน Profile
     const updatedProfile: UserProfile = {
       ...profile,
       lastPeriodStartDate: todayStr,
     };
     handleUpdateProfile(updatedProfile);
-
-    // บันทึก Cycle Log ใหม่
-    const newCycle: CycleLog = {
-      id: `cycle-${Date.now()}`,
-      startDate: todayStr,
-    };
-    saveCycleLog(newCycle);
-
-    // ปรับวันเปิดดูเป็นวันนี้
     setSelectedDate(todayStr);
+  };
+
+  // ✨ วันที่เมนหาย/วันหมด (สิ้นสุดรอบ)
+  const handlePeriodEndedToday = () => {
+    const todayStr = formatDateSafe(new Date());
+    
+    // หา cycle ล่าสุดที่ยังไม่มี endDate หรือมี startDate ใกล้เคียง
+    const sorted = [...cycleLogs].sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
+    let target = sorted[0];
+
+    if (target) {
+      const updated: CycleLog = {
+        ...target,
+        endDate: todayStr,
+      };
+      const updatedCycles = saveCycleLog(updated);
+      setCycleLogs(updatedCycles);
+
+      // คำนวณค่าเฉลี่ยใหม่แบบ Adaptive
+      const newAvgPeriod = calculateAdaptivePeriodLength(updatedCycles, profile.averagePeriodLength);
+      const newAvgCycle = calculateAdaptiveCycleLength(updatedCycles, profile.averageCycleLength);
+      handleUpdateProfile({
+        ...profile,
+        averagePeriodLength: newAvgPeriod,
+        averageCycleLength: newAvgCycle,
+      });
+    }
+  };
+
+  // 📝 บันทึกหรือแก้ไขรอบเดือน (Custom Start & End Date)
+  const handleSaveCycle = (cycle: CycleLog) => {
+    const updatedCycles = saveCycleLog(cycle);
+    setCycleLogs(updatedCycles);
+
+    // ปรับวันล่าสุดหากเป็นรอบที่ใหม่สุด
+    const sorted = [...updatedCycles].sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
+    if (sorted[0]?.id === cycle.id) {
+      const newAvgPeriod = calculateAdaptivePeriodLength(updatedCycles, profile.averagePeriodLength);
+      const newAvgCycle = calculateAdaptiveCycleLength(updatedCycles, profile.averageCycleLength);
+      handleUpdateProfile({
+        ...profile,
+        lastPeriodStartDate: cycle.startDate,
+        averagePeriodLength: newAvgPeriod,
+        averageCycleLength: newAvgCycle,
+      });
+    }
+  };
+
+  // 🗑️ ลบรอบเดือน
+  const handleDeleteCycle = (cycleId: string) => {
+    const updatedCycles = deleteCycleLog(cycleId);
+    setCycleLogs(updatedCycles);
   };
 
   const handleOpenLogModal = (dateStr?: string) => {
@@ -126,11 +191,13 @@ export default function Home() {
 
       {/* Main Content Dashboard */}
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
-        {/* Hero Status Banner */}
+        {/* Hero Status Banner with Start/End toggles */}
         <StatusBanner
           stats={summaryStats}
           profile={profile}
           onPeriodStartedToday={handlePeriodStartedToday}
+          onPeriodEndedToday={handlePeriodEndedToday}
+          onOpenPeriodRangeModal={() => setIsPeriodRangeModalOpen(true)}
         />
 
         {/* Partner Care In-depth Hub (Active in Partner Support Mode) */}
@@ -173,6 +240,14 @@ export default function Home() {
       </footer>
 
       {/* Modals */}
+      <PeriodRangeModal
+        isOpen={isPeriodRangeModalOpen}
+        cycleLogs={cycleLogs}
+        onClose={() => setIsPeriodRangeModalOpen(false)}
+        onSaveCycle={handleSaveCycle}
+        onDeleteCycle={handleDeleteCycle}
+      />
+
       <DailyLogModal
         isOpen={isLogModalOpen}
         dateStr={activeLogDate}
