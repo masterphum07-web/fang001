@@ -1,5 +1,19 @@
-import { addDays, subDays, differenceInCalendarDays, format, parseISO, isSameDay, isWithinInterval } from 'date-fns';
+import { addDays, subDays, differenceInCalendarDays, format, parseISO, isSameDay } from 'date-fns';
 import { CyclePhase, DailyPhaseInfo, CycleLog } from '@/lib/types/cycle';
+
+export interface BehavioralAnalysis {
+  hasEnoughData: boolean;
+  cycleCount: number;
+  avgCycleLength: number;
+  minCycleLength: number;
+  maxCycleLength: number;
+  avgPeriodLength: number;
+  minPeriodLength: number;
+  maxPeriodLength: number;
+  regularityStatus: 'สม่ำเสมอสูง' | 'ปกติ (แปรผันตามธรรมชาติ)' | 'รอบเดือนค่อนข้างแปรปรวน';
+  predictedRange: { start: string; end: string };
+  insightNote: string;
+}
 
 export interface CycleSummaryStats {
   currentDate: string;
@@ -7,6 +21,7 @@ export interface CycleSummaryStats {
   currentPhase: CyclePhase;
   phaseLabel: string;
   nextPeriodDate: string;
+  nextPeriodWindow: { start: string; end: string };
   daysUntilNextPeriod: number;
   nextOvulationDate: string;
   daysUntilOvulation: number;
@@ -17,6 +32,7 @@ export interface CycleSummaryStats {
   isCurrentlyBleeding: boolean;
   activeCycleStartDate?: string;
   activeCycleEndDate?: string;
+  behavioralInsight?: BehavioralAnalysis;
 }
 
 export function parseDateSafe(dateInput: string | Date): Date {
@@ -29,59 +45,144 @@ export function formatDateSafe(date: Date): string {
 }
 
 /**
- * คำนวณความยาวประจำเดือนเฉลี่ย (Period Length) จากประวัติรอบที่เคยบันทึกวันเริ่มและวันหมดจริง
+ * 🧠 วิเคราะห์พฤติกรรมร่างกายเฉพาะบุคคล (Behavioral Pattern Learning)
+ * คำนวณจากประวัติจริง ไม่ใช้การตั้งค่าตายตัว
  */
-export function calculateAdaptivePeriodLength(cycleLogs: CycleLog[], fallback: number = 5): number {
-  if (!cycleLogs || cycleLogs.length === 0) return fallback;
-  
-  let totalDays = 0;
-  let count = 0;
+export function analyzePersonalBehavior(
+  cycleLogs: CycleLog[] = [],
+  fallbackCycle: number = 28,
+  fallbackPeriod: number = 5
+): BehavioralAnalysis {
+  if (!cycleLogs || cycleLogs.length === 0) {
+    return {
+      hasEnoughData: false,
+      cycleCount: 0,
+      avgCycleLength: fallbackCycle,
+      minCycleLength: fallbackCycle - 2,
+      maxCycleLength: fallbackCycle + 2,
+      avgPeriodLength: fallbackPeriod,
+      minPeriodLength: fallbackPeriod - 1,
+      maxPeriodLength: fallbackPeriod + 1,
+      regularityStatus: 'ปกติ (แปรผันตามธรรมชาติ)',
+      predictedRange: {
+        start: formatDateSafe(addDays(new Date(), fallbackCycle - 1)),
+        end: formatDateSafe(addDays(new Date(), fallbackCycle + 1)),
+      },
+      insightNote: 'ยังไม่มีประวัติบันทึก ระบบใช้ค่ามาตรฐานทางการแพทย์ชั่วคราว เมื่อเริ่มจดวันเริ่ม-วันหมด ระบบจะเรียนรู้สรีระจริงให้อัตโนมัติ',
+    };
+  }
 
+  // 1. วิเคราะห์จำนวนวันที่มีประจำเดือนจริง (Period Length) จากแต่ละรอบ
+  const recordedPeriodLengths: number[] = [];
   for (const log of cycleLogs) {
     if (log.startDate && log.endDate) {
       const start = parseDateSafe(log.startDate);
       const end = parseDateSafe(log.endDate);
       const diff = differenceInCalendarDays(end, start) + 1;
       if (diff >= 1 && diff <= 14) {
-        totalDays += diff;
-        count++;
+        recordedPeriodLengths.push(diff);
       }
     }
   }
 
-  if (count === 0) return fallback;
-  return Math.round(totalDays / count);
-}
+  let avgPeriodLength = fallbackPeriod;
+  let minPeriodLength = fallbackPeriod;
+  let maxPeriodLength = fallbackPeriod;
 
-/**
- * คำนวณรอบเดือนเฉลี่ย (Cycle Length) จากประวัติรอบที่เคยบันทึก
- */
-export function calculateAdaptiveCycleLength(cycleLogs: CycleLog[], fallback: number = 28): number {
-  if (!cycleLogs || cycleLogs.length < 2) return fallback;
+  if (recordedPeriodLengths.length > 0) {
+    // ให้น้ำหนักรอบล่าสุดมากกว่า (Weighted Average)
+    let weightedSum = 0;
+    let weightTotal = 0;
+    recordedPeriodLengths.forEach((len, idx) => {
+      const weight = idx + 1;
+      weightedSum += len * weight;
+      weightTotal += weight;
+    });
+    avgPeriodLength = Math.round(weightedSum / weightTotal);
+    minPeriodLength = Math.min(...recordedPeriodLengths);
+    maxPeriodLength = Math.max(...recordedPeriodLengths);
+  }
 
-  // เรียงวันเริ่มจากเก่าไปใหม่
-  const sorted = [...cycleLogs]
+  // 2. วิเคราะห์ความยาวรอบเดือนจริง (Cycle Length) ระหว่างแต่ละรอบ
+  const sortedStarts = [...cycleLogs]
     .map((c) => c.startDate)
     .filter(Boolean)
     .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
-  let totalDiff = 0;
-  let count = 0;
-
-  for (let i = 1; i < sorted.length; i++) {
-    const diff = differenceInCalendarDays(parseDateSafe(sorted[i]), parseDateSafe(sorted[i - 1]));
-    if (diff >= 20 && diff <= 45) {
-      totalDiff += diff;
-      count++;
+  const recordedCycleLengths: number[] = [];
+  for (let i = 1; i < sortedStarts.length; i++) {
+    const diff = differenceInCalendarDays(parseDateSafe(sortedStarts[i]), parseDateSafe(sortedStarts[i - 1]));
+    if (diff >= 18 && diff <= 50) {
+      recordedCycleLengths.push(diff);
     }
   }
 
-  if (count === 0) return fallback;
-  return Math.round(totalDiff / count);
+  let avgCycleLength = fallbackCycle;
+  let minCycleLength = fallbackCycle - 2;
+  let maxCycleLength = fallbackCycle + 2;
+  let regularityStatus: 'สม่ำเสมอสูง' | 'ปกติ (แปรผันตามธรรมชาติ)' | 'รอบเดือนค่อนข้างแปรปรวน' = 'ปกติ (แปรผันตามธรรมชาติ)';
+
+  if (recordedCycleLengths.length > 0) {
+    let weightedSum = 0;
+    let weightTotal = 0;
+    recordedCycleLengths.forEach((len, idx) => {
+      const weight = idx + 1;
+      weightedSum += len * weight;
+      weightTotal += weight;
+    });
+    avgCycleLength = Math.round(weightedSum / weightTotal);
+    minCycleLength = Math.min(...recordedCycleLengths);
+    maxCycleLength = Math.max(...recordedCycleLengths);
+
+    const variance = maxCycleLength - minCycleLength;
+    if (variance <= 2) {
+      regularityStatus = 'สม่ำเสมอสูง';
+    } else if (variance <= 5) {
+      regularityStatus = 'ปกติ (แปรผันตามธรรมชาติ)';
+    } else {
+      regularityStatus = 'รอบเดือนค่อนข้างแปรปรวน';
+    }
+  }
+
+  // คาดการณ์หน้าต่างวันที่เมนจะมา (Window of Prediction)
+  const latestStartStr = sortedStarts[sortedStarts.length - 1] || formatDateSafe(new Date());
+  const latestStart = parseDateSafe(latestStartStr);
+  const predictedCenter = addDays(latestStart, avgCycleLength);
+  const windowHalfSpan = Math.max(1, Math.round((maxCycleLength - minCycleLength) / 2));
+  const predictedRange = {
+    start: formatDateSafe(subDays(predictedCenter, windowHalfSpan)),
+    end: formatDateSafe(addDays(predictedCenter, windowHalfSpan)),
+  };
+
+  const insightNote = recordedCycleLengths.length >= 1
+    ? `ระบบเรียนรู้จากประวัติ ${cycleLogs.length} รอบ: รอบเดือนจริงจะอยู่ที่ ${minCycleLength}-${maxCycleLength} วัน (เฉลี่ย ${avgCycleLength} วัน) และมีประจำเดือนประมาณ ${minPeriodLength}-${maxPeriodLength} วัน`
+    : `บันทึกแล้ว ${cycleLogs.length} รอบเดือน ระบบกำลังเริ่มจดจำพฤติกรรมร่างกายจริง`;
+
+  return {
+    hasEnoughData: recordedCycleLengths.length >= 1 || recordedPeriodLengths.length >= 1,
+    cycleCount: cycleLogs.length,
+    avgCycleLength,
+    minCycleLength,
+    maxCycleLength,
+    avgPeriodLength,
+    minPeriodLength,
+    maxPeriodLength,
+    regularityStatus,
+    predictedRange,
+    insightNote,
+  };
+}
+
+export function calculateAdaptivePeriodLength(cycleLogs: CycleLog[], fallback: number = 5): number {
+  return analyzePersonalBehavior(cycleLogs, 28, fallback).avgPeriodLength;
+}
+
+export function calculateAdaptiveCycleLength(cycleLogs: CycleLog[], fallback: number = 28): number {
+  return analyzePersonalBehavior(cycleLogs, fallback, 5).avgCycleLength;
 }
 
 /**
- * ตรวจสอบว่าวันที่ระบุ อยู่ในช่วงที่มีประจำเดือนจริงตามประวัติที่ผู้ใช้จดไว้หรือไม่
+ * ค้นหาว่าวันเป้าหมายอยู่ในช่วงประจำเดือนของประวัติรอบไหน
  */
 export function findActualPeriodStatus(
   targetDate: Date,
@@ -110,7 +211,7 @@ export function findActualPeriodStatus(
 }
 
 /**
- * คำนวณข้อมูล Phase สำหรับปฏิทิน โดยอิงตาม "วันเริ่ม - วันหมดจริง" ที่ผู้ใช้จด
+ * คำนวณข้อมูล Phase สำหรับปฏิทิน โดยอิงตามพฤติกรรมจริงและช่วงวันจริงที่ผู้ใช้จด
  */
 export function calculateCyclePhases(
   lastPeriodStartDateInput: string | Date,
@@ -122,14 +223,19 @@ export function calculateCyclePhases(
   const lastPeriodStart = parseDateSafe(lastPeriodStartDateInput);
   const phaseMap = new Map<string, DailyPhaseInfo>();
 
-  const startScanDate = subDays(lastPeriodStart, 21);
+  // วิเคราะห์พฤติกรรมเพื่อใช้ค่าเฉลี่ยสรีระจริง
+  const behavior = analyzePersonalBehavior(cycleLogs, averageCycleLength, averagePeriodLength);
+  const effectiveCycleLen = behavior.avgCycleLength;
+  const effectivePeriodLen = behavior.avgPeriodLength;
+
+  const startScanDate = subDays(lastPeriodStart, 28);
   const endScanDate = addDays(lastPeriodStart, daysAhead);
   const totalDays = differenceInCalendarDays(endScanDate, startScanDate) + 1;
 
   for (let i = 0; i < totalDays; i++) {
     const targetDate = addDays(startScanDate, i);
     const dateStr = formatDateSafe(targetDate);
-    const info = getDayPhaseInfo(targetDate, lastPeriodStart, averageCycleLength, averagePeriodLength, cycleLogs);
+    const info = getDayPhaseInfo(targetDate, lastPeriodStart, effectiveCycleLen, effectivePeriodLen, cycleLogs);
     phaseMap.set(dateStr, info);
   }
 
@@ -137,7 +243,7 @@ export function calculateCyclePhases(
 }
 
 /**
- * คำนวณระยะของวันหนึ่งวัน โดยให้ความสำคัญสูงสุดกับ "วันเริ่มและวันหมดจริง" ที่ผู้ใช้บันทึก
+ * คำนวณระยะของวันหนึ่งวันตามสรีระเฉพาะบุคคล
  */
 export function getDayPhaseInfo(
   targetDateInput: string | Date,
@@ -149,10 +255,9 @@ export function getDayPhaseInfo(
   const targetDate = parseDateSafe(targetDateInput);
   const lastPeriodStart = parseDateSafe(lastPeriodStartDateInput);
 
-  // 1. ตรวจสอบก่อนว่าวันนี้อยู่ในช่วงที่จดวันเริ่ม-วันหมดจริงหรือไม่
+  // ตรวจสอบวันจริงที่บันทึกไว้
   const actualStatus = findActualPeriodStatus(targetDate, cycleLogs, averagePeriodLength);
 
-  // คำนวณรอบเดือนคาดการณ์
   const diffFromLastStart = differenceInCalendarDays(targetDate, lastPeriodStart);
   let cycleIndex = Math.floor(diffFromLastStart / averageCycleLength);
   let cycleStart = addDays(lastPeriodStart, cycleIndex * averageCycleLength);
@@ -176,7 +281,6 @@ export function getDayPhaseInfo(
   let bodyFeel = 'รู้สึกกระปรี้กระเปร่า สมองปลอดโปร่ง ผ่อนคลาย';
   let careTipForPartner = 'ชวนไปเที่ยว ออกเดท หรือทำกิจกรรมสนุกๆ ด้วยกันได้เต็มที่ แฟนมีพลังงานเยอะ!';
 
-  // ถ้าเป็นวันที่มีประจำเดือนจริงตามประวัติที่จดไว้ (ไม่ล็อควัน!)
   if (actualStatus.isActualPeriod) {
     phase = 'menstrual';
     phaseLabel = actualStatus.isStartDate 
@@ -254,7 +358,7 @@ export function getDayPhaseInfo(
 }
 
 /**
- * คำนวณสรุปสถิติประจำวัน พร้อมตรวจสอบว่าวันนี้มีประจำเดือนอยู่หรือไม่
+ * คำนวณสรุปสถิติประจำวัน อิงพฤติกรรมร่างกายจริง
  */
 export function calculateSummaryStats(
   targetDateInput: string | Date = new Date(),
@@ -266,9 +370,14 @@ export function calculateSummaryStats(
   const targetDate = parseDateSafe(targetDateInput);
   const lastPeriodStart = parseDateSafe(lastPeriodStartDateInput);
 
-  const dayInfo = getDayPhaseInfo(targetDate, lastPeriodStart, averageCycleLength, averagePeriodLength, cycleLogs);
+  // 1. วิเคราะห์พฤติกรรมสรีระเฉพาะบุคคล
+  const behavioralInsight = analyzePersonalBehavior(cycleLogs, averageCycleLength, averagePeriodLength);
+  const effectiveCycleLen = behavioralInsight.avgCycleLength;
+  const effectivePeriodLen = behavioralInsight.avgPeriodLength;
 
-  // ตรวจสอบรอบที่กำลังดำเนินอยู่ (Active Cycle)
+  const dayInfo = getDayPhaseInfo(targetDate, lastPeriodStart, effectiveCycleLen, effectivePeriodLen, cycleLogs);
+
+  // ตรวจสอบว่ากำลังมีประจำเดือนอยู่หรือไม่
   const latestCycle = cycleLogs.length > 0
     ? [...cycleLogs].sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime())[0]
     : undefined;
@@ -280,26 +389,25 @@ export function calculateSummaryStats(
       const end = parseDateSafe(latestCycle.endDate);
       isCurrentlyBleeding = targetDate >= start && targetDate <= end;
     } else {
-      // ยังไม่ได้บันทึกวันหมด: ถ้าเริ่มมาแล้วไม่เกิน 10 วัน ถือว่าอาจจะยังเป็นอยู่
       const daysSinceStart = differenceInCalendarDays(targetDate, start);
-      isCurrentlyBleeding = daysSinceStart >= 0 && daysSinceStart < averagePeriodLength;
+      isCurrentlyBleeding = daysSinceStart >= 0 && daysSinceStart < effectivePeriodLen;
     }
   }
 
-  // คำนวณวันแรกของรอบถัดไป
+  // วันแรกของรอบถัดไป
   const diff = differenceInCalendarDays(targetDate, lastPeriodStart);
-  const cycleIndex = Math.floor(diff / averageCycleLength);
-  let nextPeriod = addDays(lastPeriodStart, (cycleIndex + 1) * averageCycleLength);
+  const cycleIndex = Math.floor(diff / effectiveCycleLen);
+  let nextPeriod = addDays(lastPeriodStart, (cycleIndex + 1) * effectiveCycleLen);
 
   if (differenceInCalendarDays(nextPeriod, targetDate) <= 0) {
-    nextPeriod = addDays(nextPeriod, averageCycleLength);
+    nextPeriod = addDays(nextPeriod, effectiveCycleLen);
   }
 
   const daysUntilNextPeriod = differenceInCalendarDays(nextPeriod, targetDate);
 
   let nextOvulation = subDays(nextPeriod, 14);
   if (differenceInCalendarDays(nextOvulation, targetDate) < 0) {
-    const nextNextPeriod = addDays(nextPeriod, averageCycleLength);
+    const nextNextPeriod = addDays(nextPeriod, effectiveCycleLen);
     nextOvulation = subDays(nextNextPeriod, 14);
   }
   const daysUntilOvulation = differenceInCalendarDays(nextOvulation, targetDate);
@@ -310,6 +418,7 @@ export function calculateSummaryStats(
     currentPhase: dayInfo.phase,
     phaseLabel: dayInfo.phaseLabel,
     nextPeriodDate: formatDateSafe(nextPeriod),
+    nextPeriodWindow: behavioralInsight.predictedRange,
     daysUntilNextPeriod,
     nextOvulationDate: formatDateSafe(nextOvulation),
     daysUntilOvulation,
@@ -320,5 +429,6 @@ export function calculateSummaryStats(
     isCurrentlyBleeding,
     activeCycleStartDate: latestCycle?.startDate,
     activeCycleEndDate: latestCycle?.endDate,
+    behavioralInsight,
   };
 }

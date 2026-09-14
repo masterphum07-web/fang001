@@ -261,8 +261,10 @@ export default function Home() {
       <CycleSettingsModal
         isOpen={isSettingsModalOpen}
         profile={profile}
+        cycleLogs={cycleLogs}
         onClose={() => setIsSettingsModalOpen(false)}
         onSave={handleUpdateProfile}
+        onOpenPeriodRangeModal={() => setIsPeriodRangeModalOpen(true)}
       />
     </div>
   );
