@@ -1,5 +1,7 @@
 # 🌸 Bloom & Care - ระบบติดตามรอบเดือนเพื่อคู่รัก (Menstrual Cycle Tracker)
 
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fmasterphum07-web%2Ffang001)
+
 > เว็บแอปพลิเคชันสำหรับติดตามรอบเดือนตามหลักสูตินารีแพทย์ (ACOG) ออกแบบพิเศษเพื่อให้คู่รักเข้าใจและดูแลกันได้ดียิ่งขึ้น พร้อมรองรับการเชื่อมต่อกับ **LINE Official Account (LINE OA)** และ **Supabase**
 
 ---
