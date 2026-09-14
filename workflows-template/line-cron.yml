@@ -1,0 +1,17 @@
+name: Daily Menstrual Tracker LINE Notifications
+
+on:
+  schedule:
+    # รันทุกวันเวลา 01:00 UTC (ตรงกับ 08:00 AM เวลาประเทศไทย ICT / GMT+7)
+    - cron: '0 1 * * *'
+  workflow_dispatch: # อนุญาตให้กดรันแบบ Manual บน GitHub ได้ด้วย
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Notification Cron API
+        run: |
+          curl -X GET "${{ secrets.APP_URL }}/api/cron/notify" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json"
