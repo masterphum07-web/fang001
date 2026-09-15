@@ -17,7 +17,7 @@ try {
 
   // 2. Run next build with EXPORT_STATIC=true
   console.log('Building static export for GitHub Pages...');
-  execSync('npx next build', {
+  execSync('npm run build', {
     stdio: 'inherit',
     env: { ...process.env, EXPORT_STATIC: 'true' },
   });
@@ -32,6 +32,21 @@ try {
   }
 
   console.log('Static export built successfully in /out!');
+
+  // 4. Push to gh-pages branch
+  console.log('Pushing out to GitHub Pages (gh-pages branch)...');
+  const deployTemp = path.join(process.env.TEMP || 'C:\\Temp', 'gh-pages-deploy-' + Date.now());
+  fs.cpSync(outDir, deployTemp, { recursive: true });
+  try {
+    execSync('git init && git config user.name "masterphum07-web" && git config user.email "masterphum07-web@users.noreply.github.com" && git remote add origin https://github.com/masterphum07-web/fang001.git && git checkout -b gh-pages && git add -A && git commit -m "deploy: update GitHub Pages with LINE ID and period persistence" && git push origin gh-pages --force', {
+      cwd: deployTemp,
+      stdio: 'inherit',
+      shell: true,
+    });
+    console.log('Successfully deployed to GitHub Pages (gh-pages)!');
+  } finally {
+    fs.rmSync(deployTemp, { recursive: true, force: true });
+  }
 } catch (err) {
   console.error('Build error:', err);
   throw err;
