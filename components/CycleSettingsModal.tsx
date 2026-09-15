@@ -30,11 +30,37 @@ export const CycleSettingsModal: React.FC<CycleSettingsModalProps> = ({
   const [showManualOverride, setShowManualOverride] = useState(false);
   const [manualCycleLength, setManualCycleLength] = useState(profile.averageCycleLength);
   const [manualPeriodLength, setManualPeriodLength] = useState(profile.averagePeriodLength);
+  const [lineSaveSuccess, setLineSaveSuccess] = useState(false);
+
+  // Sync state whenever modal opens or profile changes
+  React.useEffect(() => {
+    if (isOpen) {
+      setName(profile.name);
+      setPartnerName(profile.partnerName);
+      setLastPeriodStartDate(profile.lastPeriodStartDate);
+      setLineUserId(profile.lineUserId || '');
+      setManualCycleLength(profile.averageCycleLength);
+      setManualPeriodLength(profile.averagePeriodLength);
+      setLineSaveSuccess(false);
+    }
+  }, [isOpen, profile]);
 
   // วิเคราะห์พฤติกรรมจริงจากประวัติ
   const behavior = analyzePersonalBehavior(cycleLogs, profile.averageCycleLength, profile.averagePeriodLength);
 
   if (!isOpen) return null;
+
+  const handleSaveLineOnly = () => {
+    const cleanId = lineUserId.trim();
+    onSave({
+      ...profile,
+      lineUserId: cleanId,
+    });
+    setLineSaveSuccess(true);
+    setTimeout(() => {
+      setLineSaveSuccess(false);
+    }, 4000);
+  };
 
   const handleSave = () => {
     onSave({
@@ -45,7 +71,7 @@ export const CycleSettingsModal: React.FC<CycleSettingsModalProps> = ({
       // ถ้าเปิด Manual Override ให้ใช้ค่าที่ตั้งเอง ถ้าไม่เปิดให้ใช้ค่าที่คำนวณจากพฤติกรรม
       averageCycleLength: showManualOverride ? Number(manualCycleLength) : behavior.avgCycleLength,
       averagePeriodLength: showManualOverride ? Number(manualPeriodLength) : behavior.avgPeriodLength,
-      lineUserId,
+      lineUserId: lineUserId.trim(),
     });
     onClose();
   };
@@ -271,10 +297,30 @@ export const CycleSettingsModal: React.FC<CycleSettingsModalProps> = ({
           )}
 
           {activeTab === 'line' && (
-            <div className="space-y-3">
-              <div className="p-3.5 rounded-2xl bg-sky-50 border border-sky-200 text-sky-900 text-xs font-medium">
-                <span className="font-bold block mb-1">💬 การเชื่อมต่อกับ LINE OA</span>
-                ระบบรองรับการแจ้งเตือนอัตโนมัติ และการพิมพ์สั่งงานผ่านแชท เช่น พิมพ์ "เมนมา", "เมนหาย", "เช็คสถานะ"
+            <div className="space-y-3.5">
+              <div className="p-3.5 rounded-2xl bg-sky-50 border border-sky-200 text-sky-900 text-xs font-medium space-y-1">
+                <span className="font-bold flex items-center gap-1.5 text-sky-950">
+                  <MessageCircle className="w-4 h-4 text-sky-600" />
+                  การเชื่อมต่อกับ LINE OA
+                </span>
+                <p>
+                  ระบบรองรับการแจ้งเตือนอัตโนมัติ และการพิมพ์สั่งงานผ่านแชท เช่น พิมพ์ "เมนมา", "เมนหาย", "เช็คสถานะ"
+                </p>
+              </div>
+
+              {/* Connection Status Indicator */}
+              <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                <span className="text-slate-500 font-medium">สถานะการเชื่อมต่อ:</span>
+                {profile.lineUserId ? (
+                  <span className="font-bold text-emerald-700 bg-emerald-100/80 px-2.5 py-0.5 rounded-md flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    เชื่อมต่อแล้ว ({profile.lineUserId.slice(0, 8)}...)
+                  </span>
+                ) : (
+                  <span className="font-semibold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-md">
+                    ยังไม่ได้ระบุ User ID
+                  </span>
+                )}
               </div>
 
               <div>
@@ -286,13 +332,43 @@ export const CycleSettingsModal: React.FC<CycleSettingsModalProps> = ({
                   value={lineUserId}
                   onChange={(e) => setLineUserId(e.target.value)}
                   placeholder="U1234567890abcdef..."
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono focus:ring-2 focus:ring-sky-300 focus:outline-none"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-mono focus:ring-2 focus:ring-sky-300 focus:outline-none"
                 />
               </div>
 
-              <div className="text-xs space-y-1.5 text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-200 font-medium">
-                <p className="font-bold text-slate-800">📌 บันทึก LINE Token เรียบร้อยแล้ว</p>
-                <p>Token ของคุณถูกบันทึกไว้ในระบบพร้อมส่งการแจ้งเตือนผ่าน API อัตโนมัติแล้วครับ</p>
+              {/* Dedicated LINE ID Save Button */}
+              <button
+                type="button"
+                onClick={handleSaveLineOnly}
+                className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-xs font-bold shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5"
+              >
+                <Check className="w-4 h-4" />
+                <span>💾 บันทึก LINE User ID นี้ทันที</span>
+              </button>
+
+              {/* Save Success Alert */}
+              {lineSaveSuccess && (
+                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-bold flex items-center gap-2 animate-fade-in shadow-2xs">
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>✅ บันทึก LINE User ID เรียบร้อยแล้ว! ข้อมูลจะถูกเก็บไว้ถาวร</span>
+                </div>
+              )}
+
+              <div className="text-xs space-y-1.5 text-slate-600 bg-slate-50 p-3.5 rounded-xl border border-slate-200 font-medium">
+                <p className="font-bold text-slate-800 flex items-center gap-1">
+                  💡 วิธีรับ LINE User ID ของแฟน:
+                </p>
+                <p className="text-[11px] leading-relaxed text-slate-600">
+                  1. ให้แฟนแอด Line Official Account ของคุณ<br />
+                  2. ให้แฟนพิมพ์คำว่า <b>"ไอดี"</b> หรือ <b>"ID"</b> ส่งเข้าห้องแชท<br />
+                  3. บอทจะตอบกลับเป็นรหัส User ID ขึ้นต้นด้วยตัว <b>U</b> (เช่น U4af... ยาว 33 ตัวอักษร)<br />
+                  4. คัดลอกรหัสนั้นมาวางในช่องด้านบนแล้วกด <b>"บันทึก LINE User ID นี้ทันที"</b> ได้เลยครับ
+                </p>
+              </div>
+
+              <div className="text-xs text-slate-600 bg-sky-50/50 p-3 rounded-xl border border-sky-200 font-medium">
+                <p className="font-bold text-sky-900">📌 บันทึก LINE Token เรียบร้อยแล้ว</p>
+                <p className="text-[11px] text-sky-800">Channel Access Token ของคุณถูกติดตั้งในระบบเรียบร้อย พร้อมส่งการแจ้งเตือนทันทีที่บันทึก User ID</p>
               </div>
             </div>
           )}

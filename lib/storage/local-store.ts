@@ -88,11 +88,25 @@ export function loadCycleLogs(): CycleLog[] {
   }
 }
 
+export function saveAllCycleLogs(cycles: CycleLog[]): CycleLog[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const updated = [...cycles].sort(
+      (a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime()
+    );
+    localStorage.setItem(STORAGE_KEYS.CYCLES, JSON.stringify(updated));
+    return updated;
+  } catch (e) {
+    console.error('Error saving all cycle logs to localStorage', e);
+    return [];
+  }
+}
+
 export function saveCycleLog(newLog: CycleLog): CycleLog[] {
   if (typeof window === 'undefined') return [];
   try {
     const existing = loadCycleLogs();
-    const filtered = existing.filter((c) => c.id !== newLog.id);
+    const filtered = existing.filter((c) => c.id !== newLog.id && c.startDate !== newLog.startDate);
     const updated = [newLog, ...filtered].sort(
       (a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime()
     );
@@ -125,6 +139,17 @@ export function loadDailyLogs(): Record<string, DailyLog> {
     return JSON.parse(raw);
   } catch (e) {
     console.error('Error loading daily logs from localStorage', e);
+    return {};
+  }
+}
+
+export function saveAllDailyLogs(dailyLogs: Record<string, DailyLog>): Record<string, DailyLog> {
+  if (typeof window === 'undefined') return {};
+  try {
+    localStorage.setItem(STORAGE_KEYS.DAILY_LOGS, JSON.stringify(dailyLogs));
+    return { ...dailyLogs };
+  } catch (e) {
+    console.error('Error saving all daily logs to localStorage', e);
     return {};
   }
 }

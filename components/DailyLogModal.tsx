@@ -108,11 +108,35 @@ export const DailyLogModal: React.FC<DailyLogModalProps> = ({
 
         {/* Modal Body (Scrollable) */}
         <div className="p-6 overflow-y-auto space-y-5 text-sm">
+          {/* Main Period Toggle Switch */}
+          <div className="p-3.5 rounded-2xl bg-rose-50/50 border border-rose-200 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-rose-500 text-white flex items-center justify-center font-bold">
+                🩸
+              </div>
+              <div>
+                <span className="font-bold text-slate-800 text-xs sm:text-sm block">วันนี้มีประจำเดือน (เมนมา)</span>
+                <span className="text-[11px] text-rose-600 font-medium">ระบุเพื่อคำนวณระยะรอบเดือนอัตโนมัติ</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFlowLevel(flowLevel > 0 ? 0 : 3)}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-2xs ${
+                flowLevel > 0
+                  ? 'bg-rose-600 text-white ring-2 ring-rose-300 shadow-sm'
+                  : 'bg-white border border-slate-300 text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              {flowLevel > 0 ? '✓ เมนมาวันนี้' : 'ไม่มีประจำเดือน'}
+            </button>
+          </div>
+
           {/* Flow Level */}
           <div>
             <label className="block text-xs font-bold text-slate-600 mb-2 flex items-center gap-1.5">
               <Droplets className="w-4 h-4 text-rose-500" />
-              <span>ปริมาณประจำเดือน (Flow Level):</span>
+              <span>ระดับปริมาณเลือด (Flow Level):</span>
             </label>
             <div className="flex items-center gap-2">
               {[0, 1, 2, 3, 4, 5].map((level) => (

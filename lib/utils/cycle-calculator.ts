@@ -1,5 +1,5 @@
 import { addDays, subDays, differenceInCalendarDays, format, parseISO, isSameDay } from 'date-fns';
-import { CyclePhase, DailyPhaseInfo, CycleLog } from '@/lib/types/cycle';
+import { CyclePhase, DailyPhaseInfo, CycleLog, DailyLog } from '@/lib/types/cycle';
 
 export interface BehavioralAnalysis {
   hasEnoughData: boolean;
@@ -37,6 +37,13 @@ export interface CycleSummaryStats {
 
 export function parseDateSafe(dateInput: string | Date): Date {
   if (dateInput instanceof Date) return dateInput;
+  // เพื่อป้องกันปัญหา Timezone Offset ของ Date ให้แยกปี เดือน วัน ด้วย string
+  if (typeof dateInput === 'string' && dateInput.includes('-')) {
+    const parts = dateInput.split('T')[0].split('-');
+    if (parts.length === 3) {
+      return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]), 12, 0, 0);
+    }
+  }
   return parseISO(dateInput);
 }
 
@@ -46,7 +53,6 @@ export function formatDateSafe(date: Date): string {
 
 /**
  * 🧠 วิเคราะห์พฤติกรรมร่างกายเฉพาะบุคคล (Behavioral Pattern Learning)
- * คำนวณจากประวัติจริง ไม่ใช้การตั้งค่าตายตัว
  */
 export function analyzePersonalBehavior(
   cycleLogs: CycleLog[] = [],
@@ -68,11 +74,11 @@ export function analyzePersonalBehavior(
         start: formatDateSafe(addDays(new Date(), fallbackCycle - 1)),
         end: formatDateSafe(addDays(new Date(), fallbackCycle + 1)),
       },
-      insightNote: 'ยังไม่มีประวัติบันทึก ระบบใช้ค่ามาตรฐานทางการแพทย์ชั่วคราว เมื่อเริ่มจดวันเริ่ม-วันหมด ระบบจะเรียนรู้สรีระจริงให้อัตโนมัติ',
+      insightNote: 'ยังไม่มีประวัติบันทึก ระบบใช้ค่าเริ่มต้นชั่วคราว เมื่อเริ่มจดวันเริ่ม-วันหมด ระบบจะเรียนรู้สรีระจริงให้อัตโนมัติ',
     };
   }
 
-  // 1. วิเคราะห์จำนวนวันที่มีประจำเดือนจริง (Period Length) จากแต่ละรอบ
+  // 1. วิเคราะห์จำนวนวันที่มีประจำเดือนจริง
   const recordedPeriodLengths: number[] = [];
   for (const log of cycleLogs) {
     if (log.startDate && log.endDate) {
@@ -90,7 +96,6 @@ export function analyzePersonalBehavior(
   let maxPeriodLength = fallbackPeriod;
 
   if (recordedPeriodLengths.length > 0) {
-    // ให้น้ำหนักรอบล่าสุดมากกว่า (Weighted Average)
     let weightedSum = 0;
     let weightTotal = 0;
     recordedPeriodLengths.forEach((len, idx) => {
@@ -103,11 +108,11 @@ export function analyzePersonalBehavior(
     maxPeriodLength = Math.max(...recordedPeriodLengths);
   }
 
-  // 2. วิเคราะห์ความยาวรอบเดือนจริง (Cycle Length) ระหว่างแต่ละรอบ
+  // 2. วิเคราะห์ความยาวรอบเดือนจริงระหว่างแต่ละรอบ
   const sortedStarts = [...cycleLogs]
     .map((c) => c.startDate)
     .filter(Boolean)
-    .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+    .sort();
 
   const recordedCycleLengths: number[] = [];
   for (let i = 1; i < sortedStarts.length; i++) {
@@ -144,7 +149,6 @@ export function analyzePersonalBehavior(
     }
   }
 
-  // คาดการณ์หน้าต่างวันที่เมนจะมา (Window of Prediction)
   const latestStartStr = sortedStarts[sortedStarts.length - 1] || formatDateSafe(new Date());
   const latestStart = parseDateSafe(latestStartStr);
   const predictedCenter = addDays(latestStart, avgCycleLength);
@@ -182,28 +186,62 @@ export function calculateAdaptiveCycleLength(cycleLogs: CycleLog[], fallback: nu
 }
 
 /**
- * ค้นหาว่าวันเป้าหมายอยู่ในช่วงประจำเดือนของประวัติรอบไหน
+ * 🩸 ตรวจสอบว่าวันเป้าหมายเป็นวันมีประจำเดือนจริงหรือไม่
+ * ตรวจสอบทั้งจาก cycleLogs และ dailyLogs (Flow Level > 0) อย่างแม่นยำด้วย String Comparison
  */
 export function findActualPeriodStatus(
-  targetDate: Date,
-  cycleLogs: CycleLog[],
-  fallbackPeriodLength: number
+  targetDateStr: string,
+  cycleLogs: CycleLog[] = [],
+  dailyLogs: Record<string, DailyLog> = {},
+  fallbackPeriodLength: number = 5
 ): { isActualPeriod: boolean; isStartDate: boolean; isEndDate: boolean; logId?: string } {
+  // 1. ตรวจสอบว่าใน dailyLogs ของวันนี้มีบันทึกเลือดออก หรือเจาะจงยกเลิกหรือไม่
+  const daily = dailyLogs[targetDateStr];
+  if (daily && daily.flowLevel !== undefined) {
+    if (daily.flowLevel > 0) {
+      return { isActualPeriod: true, isStartDate: false, isEndDate: false };
+    } else if (daily.flowLevel === 0) {
+      // ผู้ใช้ระบุเจาะจงว่า "ไม่มีประจำเดือน" สำหรับวันนี้
+      return { isActualPeriod: false, isStartDate: false, isEndDate: false };
+    }
+  }
+
+  // 2. ตรวจสอบ cycleLogs
   for (const log of cycleLogs) {
     if (!log.startDate) continue;
-    const start = parseDateSafe(log.startDate);
-    const end = log.endDate ? parseDateSafe(log.endDate) : addDays(start, fallbackPeriodLength - 1);
+    const startStr = log.startDate;
+    let endStr = log.endDate;
 
-    if (isSameDay(targetDate, start)) {
-      return { isActualPeriod: true, isStartDate: true, isEndDate: log.endDate ? isSameDay(targetDate, end) : false, logId: log.id };
+    if (!endStr) {
+      const startDateObj = parseDateSafe(startStr);
+      endStr = formatDateSafe(addDays(startDateObj, fallbackPeriodLength - 1));
     }
 
-    if (log.endDate && isSameDay(targetDate, end)) {
-      return { isActualPeriod: true, isStartDate: false, isEndDate: true, logId: log.id };
+    if (targetDateStr === startStr) {
+      return { 
+        isActualPeriod: true, 
+        isStartDate: true, 
+        isEndDate: targetDateStr === endStr, 
+        logId: log.id 
+      };
     }
 
-    if (targetDate >= start && targetDate <= end) {
-      return { isActualPeriod: true, isStartDate: false, isEndDate: false, logId: log.id };
+    if (log.endDate && targetDateStr === log.endDate) {
+      return { 
+        isActualPeriod: true, 
+        isStartDate: false, 
+        isEndDate: true, 
+        logId: log.id 
+      };
+    }
+
+    if (targetDateStr >= startStr && targetDateStr <= endStr) {
+      return { 
+        isActualPeriod: true, 
+        isStartDate: false, 
+        isEndDate: false, 
+        logId: log.id 
+      };
     }
   }
 
@@ -211,31 +249,32 @@ export function findActualPeriodStatus(
 }
 
 /**
- * คำนวณข้อมูล Phase สำหรับปฏิทิน โดยอิงตามพฤติกรรมจริงและช่วงวันจริงที่ผู้ใช้จด
+ * คำนวณข้อมูล Phase สำหรับปฏิทิน
  */
 export function calculateCyclePhases(
   lastPeriodStartDateInput: string | Date,
   averageCycleLength: number = 28,
   averagePeriodLength: number = 5,
   daysAhead: number = 90,
-  cycleLogs: CycleLog[] = []
+  cycleLogs: CycleLog[] = [],
+  dailyLogs: Record<string, DailyLog> = {}
 ): Map<string, DailyPhaseInfo> {
   const lastPeriodStart = parseDateSafe(lastPeriodStartDateInput);
   const phaseMap = new Map<string, DailyPhaseInfo>();
 
-  // วิเคราะห์พฤติกรรมเพื่อใช้ค่าเฉลี่ยสรีระจริง
   const behavior = analyzePersonalBehavior(cycleLogs, averageCycleLength, averagePeriodLength);
   const effectiveCycleLen = behavior.avgCycleLength;
   const effectivePeriodLen = behavior.avgPeriodLength;
 
-  const startScanDate = subDays(lastPeriodStart, 28);
+  // ครอบคลุมย้อนหลัง 60 วัน และไปข้างหน้าตาม daysAhead
+  const startScanDate = subDays(lastPeriodStart, 60);
   const endScanDate = addDays(lastPeriodStart, daysAhead);
   const totalDays = differenceInCalendarDays(endScanDate, startScanDate) + 1;
 
   for (let i = 0; i < totalDays; i++) {
     const targetDate = addDays(startScanDate, i);
     const dateStr = formatDateSafe(targetDate);
-    const info = getDayPhaseInfo(targetDate, lastPeriodStart, effectiveCycleLen, effectivePeriodLen, cycleLogs);
+    const info = getDayPhaseInfo(dateStr, lastPeriodStart, effectiveCycleLen, effectivePeriodLen, cycleLogs, dailyLogs);
     phaseMap.set(dateStr, info);
   }
 
@@ -250,24 +289,26 @@ export function getDayPhaseInfo(
   lastPeriodStartDateInput: string | Date,
   averageCycleLength: number = 28,
   averagePeriodLength: number = 5,
-  cycleLogs: CycleLog[] = []
+  cycleLogs: CycleLog[] = [],
+  dailyLogs: Record<string, DailyLog> = {}
 ): DailyPhaseInfo {
-  const targetDate = parseDateSafe(targetDateInput);
-  const lastPeriodStart = parseDateSafe(lastPeriodStartDateInput);
+  const targetDateObj = parseDateSafe(targetDateInput);
+  const targetDateStr = typeof targetDateInput === 'string' ? targetDateInput : formatDateSafe(targetDateInput);
+  const lastPeriodStartObj = parseDateSafe(lastPeriodStartDateInput);
 
   // ตรวจสอบวันจริงที่บันทึกไว้
-  const actualStatus = findActualPeriodStatus(targetDate, cycleLogs, averagePeriodLength);
+  const actualStatus = findActualPeriodStatus(targetDateStr, cycleLogs, dailyLogs, averagePeriodLength);
 
-  const diffFromLastStart = differenceInCalendarDays(targetDate, lastPeriodStart);
+  const diffFromLastStart = differenceInCalendarDays(targetDateObj, lastPeriodStartObj);
   let cycleIndex = Math.floor(diffFromLastStart / averageCycleLength);
-  let cycleStart = addDays(lastPeriodStart, cycleIndex * averageCycleLength);
+  let cycleStart = addDays(lastPeriodStartObj, cycleIndex * averageCycleLength);
 
   const nextPeriodStart = addDays(cycleStart, averageCycleLength);
   const ovulationDate = subDays(nextPeriodStart, 14);
   const fertileStart = subDays(ovulationDate, 5);
   const pmsStart = subDays(nextPeriodStart, 6);
 
-  const dayOfCycle = differenceInCalendarDays(targetDate, cycleStart) + 1;
+  const dayOfCycle = differenceInCalendarDays(targetDateObj, cycleStart) + 1;
 
   let phase: CyclePhase = 'follicular';
   let phaseLabel = 'ระยะฟอลลิคูลาร์ (ช่วงสบายตัว)';
@@ -294,7 +335,7 @@ export function getDayPhaseInfo(
     hormoneSummary = 'เอสโตรเจนและโปรเจสเตอโรนต่ำ ผนังมดลูกหลุดลอก';
     bodyFeel = 'อาจมีอาการปวดเกร็งท้องน้อย อ่อนเพลีย ปวดเมื่อยตัวง่าย';
     careTipForPartner = '💖 เตรียมกระเป๋าน้ำร้อน นวดหลัง ชงน้ำอุ่น และอย่าปล่อยให้หิวนะครับ ช่วงนี้ต้องการกำลังใจที่สุด!';
-  } else if (isSameDay(targetDate, ovulationDate)) {
+  } else if (isSameDay(targetDateObj, ovulationDate)) {
     phase = 'ovulation';
     phaseLabel = 'วันไข่ตก (Ovulation)';
     phaseColor = 'bg-purple-50 text-purple-800 border-purple-300';
@@ -304,7 +345,7 @@ export function getDayPhaseInfo(
     hormoneSummary = 'ฮอร์โมน LH และ Estrogen พุ่งแตะจุดสูงสุด';
     bodyFeel = 'อุณหภูมิร่างกายอาจสูงขึ้นเล็กน้อย มีมูกใส อารมณ์สดใสเบิกบาน';
     careTipForPartner = '✨ วันนี้แฟนสวยและมีเสน่ห์ดึงดูดเป็นพิเศษ หมั่นชื่นชมและบอกรักบ่อยๆ นะครับ';
-  } else if (targetDate >= fertileStart && targetDate <= ovulationDate) {
+  } else if (targetDateObj >= fertileStart && targetDateObj <= ovulationDate) {
     phase = 'fertile';
     phaseLabel = 'ช่วงเจริญพันธุ์ (โอกาสท้องสูง)';
     phaseColor = 'bg-emerald-50 text-emerald-800 border-emerald-200';
@@ -313,7 +354,7 @@ export function getDayPhaseInfo(
     hormoneSummary = 'เอสโตรเจนสูง ร่างกายพร้อมสำหรับการตกไข่';
     bodyFeel = 'สดใส มีความมั่นใจสูง อารมณ์แจ่มใส';
     careTipForPartner = '🌿 ช่วงเวลาแห่งความสุข บรรยากาศโรแมนติก (หากยังไม่พร้อมมีน้อง ต้องคุมกำเนิดอย่างรัดกุม)';
-  } else if (targetDate >= pmsStart && targetDate < nextPeriodStart) {
+  } else if (targetDateObj >= pmsStart && targetDateObj < nextPeriodStart) {
     phase = 'pms';
     phaseLabel = 'ช่วงก่อนเมนมา (PMS)';
     phaseColor = 'bg-amber-50 text-amber-800 border-amber-200';
@@ -322,7 +363,7 @@ export function getDayPhaseInfo(
     hormoneSummary = 'ฮอร์โมนโปรเจสเตอโรนและเอสโตรเจนดิ่งลง รบกวนสารเซโรโทนิน';
     bodyFeel = 'คัดตึงหน้าอก อารมณ์แปรปรวนง่าย หิวง่าย ท้องอืด นอนหลับยาก';
     careTipForPartner = '🧸 แฟนอาจจะนอยด์ง่าย ขี้น้อยใจ หรือหงุดหงิดง่าย ให้ใจเย็น รับฟัง กอดแน่นๆ และซื้อขนมมาฝากนะ!';
-  } else if (dayOfCycle > averagePeriodLength && targetDate < fertileStart) {
+  } else if (dayOfCycle > averagePeriodLength && targetDateObj < fertileStart) {
     phase = 'follicular';
     phaseLabel = 'ระยะฟอลลิคูลาร์ (สดชื่น)';
     phaseColor = 'bg-sky-50 text-sky-800 border-sky-200';
@@ -341,7 +382,7 @@ export function getDayPhaseInfo(
   }
 
   return {
-    date: formatDateSafe(targetDate),
+    date: targetDateStr,
     dayOfCycle,
     phase,
     phaseLabel,
@@ -365,55 +406,47 @@ export function calculateSummaryStats(
   lastPeriodStartDateInput: string | Date,
   averageCycleLength: number = 28,
   averagePeriodLength: number = 5,
-  cycleLogs: CycleLog[] = []
+  cycleLogs: CycleLog[] = [],
+  dailyLogs: Record<string, DailyLog> = {}
 ): CycleSummaryStats {
-  const targetDate = parseDateSafe(targetDateInput);
-  const lastPeriodStart = parseDateSafe(lastPeriodStartDateInput);
+  const targetDateObj = parseDateSafe(targetDateInput);
+  const targetDateStr = typeof targetDateInput === 'string' ? targetDateInput : formatDateSafe(targetDateInput);
+  const lastPeriodStartObj = parseDateSafe(lastPeriodStartDateInput);
 
-  // 1. วิเคราะห์พฤติกรรมสรีระเฉพาะบุคคล
   const behavioralInsight = analyzePersonalBehavior(cycleLogs, averageCycleLength, averagePeriodLength);
   const effectiveCycleLen = behavioralInsight.avgCycleLength;
   const effectivePeriodLen = behavioralInsight.avgPeriodLength;
 
-  const dayInfo = getDayPhaseInfo(targetDate, lastPeriodStart, effectiveCycleLen, effectivePeriodLen, cycleLogs);
+  const dayInfo = getDayPhaseInfo(targetDateStr, lastPeriodStartObj, effectiveCycleLen, effectivePeriodLen, cycleLogs, dailyLogs);
 
-  // ตรวจสอบว่ากำลังมีประจำเดือนอยู่หรือไม่
+  // ตรวจสอบว่ากำลังมีประจำเดือนอยู่หรือไม่ในวันนี้
+  const actualTodayStatus = findActualPeriodStatus(targetDateStr, cycleLogs, dailyLogs, effectivePeriodLen);
+  let isCurrentlyBleeding = actualTodayStatus.isActualPeriod;
+
   const latestCycle = cycleLogs.length > 0
-    ? [...cycleLogs].sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime())[0]
+    ? [...cycleLogs].sort((a, b) => b.startDate.localeCompare(a.startDate))[0]
     : undefined;
 
-  let isCurrentlyBleeding = false;
-  if (latestCycle?.startDate) {
-    const start = parseDateSafe(latestCycle.startDate);
-    if (latestCycle.endDate) {
-      const end = parseDateSafe(latestCycle.endDate);
-      isCurrentlyBleeding = targetDate >= start && targetDate <= end;
-    } else {
-      const daysSinceStart = differenceInCalendarDays(targetDate, start);
-      isCurrentlyBleeding = daysSinceStart >= 0 && daysSinceStart < effectivePeriodLen;
-    }
-  }
-
   // วันแรกของรอบถัดไป
-  const diff = differenceInCalendarDays(targetDate, lastPeriodStart);
+  const diff = differenceInCalendarDays(targetDateObj, lastPeriodStartObj);
   const cycleIndex = Math.floor(diff / effectiveCycleLen);
-  let nextPeriod = addDays(lastPeriodStart, (cycleIndex + 1) * effectiveCycleLen);
+  let nextPeriod = addDays(lastPeriodStartObj, (cycleIndex + 1) * effectiveCycleLen);
 
-  if (differenceInCalendarDays(nextPeriod, targetDate) <= 0) {
+  if (differenceInCalendarDays(nextPeriod, targetDateObj) <= 0) {
     nextPeriod = addDays(nextPeriod, effectiveCycleLen);
   }
 
-  const daysUntilNextPeriod = differenceInCalendarDays(nextPeriod, targetDate);
+  const daysUntilNextPeriod = differenceInCalendarDays(nextPeriod, targetDateObj);
 
   let nextOvulation = subDays(nextPeriod, 14);
-  if (differenceInCalendarDays(nextOvulation, targetDate) < 0) {
+  if (differenceInCalendarDays(nextOvulation, targetDateObj) < 0) {
     const nextNextPeriod = addDays(nextPeriod, effectiveCycleLen);
     nextOvulation = subDays(nextNextPeriod, 14);
   }
-  const daysUntilOvulation = differenceInCalendarDays(nextOvulation, targetDate);
+  const daysUntilOvulation = differenceInCalendarDays(nextOvulation, targetDateObj);
 
   return {
-    currentDate: formatDateSafe(targetDate),
+    currentDate: targetDateStr,
     currentDayOfCycle: dayInfo.dayOfCycle,
     currentPhase: dayInfo.phase,
     phaseLabel: dayInfo.phaseLabel,

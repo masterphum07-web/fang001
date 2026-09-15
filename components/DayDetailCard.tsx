@@ -7,9 +7,11 @@ import {
   Sparkles, 
   Activity, 
   Edit3, 
-  Droplets, 
+  Droplets,
+  Droplet,
   Smile, 
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  Check
 } from 'lucide-react';
 import { DailyPhaseInfo, DailyLog, UserProfile } from '@/lib/types/cycle';
 
@@ -19,6 +21,7 @@ interface DayDetailCardProps {
   log?: DailyLog;
   profile: UserProfile;
   onOpenLogModal: (dateStr: string) => void;
+  onTogglePeriod?: (dateStr: string, isPeriod: boolean) => void;
 }
 
 const SYMPTOM_LABELS: Record<string, string> = {
@@ -48,11 +51,22 @@ export const DayDetailCard: React.FC<DayDetailCardProps> = ({
   log,
   profile,
   onOpenLogModal,
+  onTogglePeriod,
 }) => {
+  const [justSaved, setJustSaved] = React.useState(false);
+
   if (!phaseInfo) return null;
 
   const parsedDate = parseISO(dateStr);
   const formattedDateThai = format(parsedDate, 'd MMMM yyyy');
+
+  const handlePeriodToggle = (targetState: boolean) => {
+    if (onTogglePeriod) {
+      onTogglePeriod(dateStr, targetState);
+      setJustSaved(true);
+      setTimeout(() => setJustSaved(false), 2500);
+    }
+  };
 
   return (
     <div className="bg-white rounded-3xl sm:rounded-[2rem] p-5 sm:p-6 border border-slate-200 shadow-sm flex flex-col justify-between space-y-4">
@@ -74,19 +88,51 @@ export const DayDetailCard: React.FC<DayDetailCardProps> = ({
         </div>
 
         {/* Phase Header Badge */}
-        <div className="flex items-center gap-2 mb-3.5">
-          <span className={`text-xs px-3 py-1 rounded-xl font-black ${
-            phaseInfo.isPeriod ? 'bg-rose-500 text-white' :
-            phaseInfo.isOvulation ? 'bg-purple-600 text-white' :
-            phaseInfo.isPMS ? 'bg-amber-500 text-white' :
-            phaseInfo.isFertile ? 'bg-emerald-500 text-white' :
-            'bg-sky-500 text-white'
-          }`}>
-            {phaseInfo.phaseLabel}
-          </span>
-          <span className="text-xs text-slate-400 font-medium">
-            (วันที่ {phaseInfo.dayOfCycle} ของรอบ)
-          </span>
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <div className="flex items-center gap-2">
+            <span className={`text-xs px-3 py-1 rounded-xl font-black ${
+              phaseInfo.isPeriod ? 'bg-rose-500 text-white' :
+              phaseInfo.isOvulation ? 'bg-purple-600 text-white' :
+              phaseInfo.isPMS ? 'bg-amber-500 text-white' :
+              phaseInfo.isFertile ? 'bg-emerald-500 text-white' :
+              'bg-sky-500 text-white'
+            }`}>
+              {phaseInfo.phaseLabel}
+            </span>
+            <span className="text-xs text-slate-400 font-medium">
+              (วันที่ {phaseInfo.dayOfCycle} ของรอบ)
+            </span>
+          </div>
+        </div>
+
+        {/* 1-Click Period Toggle Button */}
+        <div className="mb-3.5">
+          {phaseInfo.isPeriod ? (
+            <button
+              type="button"
+              onClick={() => handlePeriodToggle(false)}
+              className="w-full py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all border border-slate-200 flex items-center justify-center gap-1.5 active:scale-98"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-slate-500" />
+              <span>✨ ยกเลิกประจำเดือนวันนี้ (ไม่ใช่วันเมนมา)</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => handlePeriodToggle(true)}
+              className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white text-xs font-bold shadow-2xs transition-all flex items-center justify-center gap-1.5 active:scale-98"
+            >
+              <Droplet className="w-3.5 h-3.5 fill-white" />
+              <span>🩸 กำหนดให้วันนี้เป็นประจำเดือน (เมนมา)</span>
+            </button>
+          )}
+
+          {justSaved && (
+            <p className="text-[11px] text-emerald-600 font-bold text-center mt-1 flex items-center justify-center gap-1 animate-fade-in">
+              <Check className="w-3 h-3" />
+              <span>บันทึกสถานะเรียบร้อยแล้ว (รีเฟรชก็ไม่หาย)</span>
+            </p>
+          )}
         </div>
 
         {/* Medical & Body Overview */}

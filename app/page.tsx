@@ -46,7 +46,7 @@ export default function Home() {
     setDailyLogs(loadDailyLogs());
   }, []);
 
-  // คำนวณ Phases และ Stats โดยอิงตาม cycleLogs จริง (ไม่ล็อควัน!)
+  // คำนวณ Phases และ Stats โดยอิงตาม cycleLogs และ dailyLogs จริง (ไม่ล็อควัน!)
   const phaseMap = useMemo(() => {
     if (!profile) return new Map();
     return calculateCyclePhases(
@@ -54,9 +54,10 @@ export default function Home() {
       profile.averageCycleLength,
       profile.averagePeriodLength,
       120,
-      cycleLogs
+      cycleLogs,
+      dailyLogs
     );
-  }, [profile, cycleLogs]);
+  }, [profile, cycleLogs, dailyLogs]);
 
   const summaryStats = useMemo(() => {
     if (!profile) return null;
@@ -65,9 +66,10 @@ export default function Home() {
       profile.lastPeriodStartDate,
       profile.averageCycleLength,
       profile.averagePeriodLength,
-      cycleLogs
+      cycleLogs,
+      dailyLogs
     );
-  }, [profile, cycleLogs]);
+  }, [profile, cycleLogs, dailyLogs]);
 
   const selectedPhaseInfo = useMemo(() => {
     return phaseMap.get(selectedDate);
@@ -91,7 +93,7 @@ export default function Home() {
   const handlePeriodStartedToday = () => {
     const todayStr = formatDateSafe(new Date());
     
-    // สร้าง CycleLog ใหม่
+    // 1. สร้างหรืออัปเดต CycleLog
     const newCycle: CycleLog = {
       id: `cycle-${Date.now()}`,
       startDate: todayStr,
@@ -100,7 +102,19 @@ export default function Home() {
     const updatedCycles = saveCycleLog(newCycle);
     setCycleLogs(updatedCycles);
 
-    // ปรับ lastPeriodStartDate ใน Profile
+    // 2. บันทึกใน dailyLogs ทันทีด้วยระดับเลือด 3
+    const todayLog: DailyLog = {
+      ...(dailyLogs[todayStr] || {
+        id: `log-${todayStr}-${Date.now()}`,
+        date: todayStr,
+        symptoms: [],
+      }),
+      flowLevel: 3,
+    };
+    const updatedDaily = saveDailyLog(todayLog);
+    setDailyLogs(updatedDaily);
+
+    // 3. ปรับ lastPeriodStartDate ใน Profile และบันทึก
     const updatedProfile: UserProfile = {
       ...profile,
       lastPeriodStartDate: todayStr,
@@ -113,7 +127,7 @@ export default function Home() {
   const handlePeriodEndedToday = () => {
     const todayStr = formatDateSafe(new Date());
     
-    // หา cycle ล่าสุดที่ยังไม่มี endDate หรือมี startDate ใกล้เคียง
+    // 1. หา cycle ล่าสุดแล้วกำหนด endDate
     const sorted = [...cycleLogs].sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
     let target = sorted[0];
 
@@ -125,6 +139,18 @@ export default function Home() {
       const updatedCycles = saveCycleLog(updated);
       setCycleLogs(updatedCycles);
 
+      // 2. อัปเดต dailyLogs
+      const todayLog: DailyLog = {
+        ...(dailyLogs[todayStr] || {
+          id: `log-${todayStr}-${Date.now()}`,
+          date: todayStr,
+          symptoms: [],
+        }),
+        flowLevel: 1,
+      };
+      const updatedDaily = saveDailyLog(todayLog);
+      setDailyLogs(updatedDaily);
+
       // คำนวณค่าเฉลี่ยใหม่แบบ Adaptive
       const newAvgPeriod = calculateAdaptivePeriodLength(updatedCycles, profile.averagePeriodLength);
       const newAvgCycle = calculateAdaptiveCycleLength(updatedCycles, profile.averageCycleLength);
@@ -133,6 +159,42 @@ export default function Home() {
         averagePeriodLength: newAvgPeriod,
         averageCycleLength: newAvgCycle,
       });
+    }
+  };
+
+  // ⚡ กำหนด/ยกเลิก ประจำเดือน 1-คลิก สำหรับวันใดๆ ที่เลือกบนปฏิทิน
+  const handleTogglePeriodForDate = (dateStr: string, willBePeriod: boolean) => {
+    // 1. อัปเดตและบันทึก dailyLogs ทันที
+    const existingLog = dailyLogs[dateStr] || {
+      id: `log-${dateStr}-${Date.now()}`,
+      date: dateStr,
+      symptoms: [],
+    };
+    const updatedLog: DailyLog = {
+      ...existingLog,
+      flowLevel: willBePeriod ? 3 : 0,
+    };
+    const updatedDaily = saveDailyLog(updatedLog);
+    setDailyLogs(updatedDaily);
+
+    // 2. ถ้ากำหนดให้เป็นประจำเดือน และเป็นวันที่ใหม่กว่าหรือเท่ากับรอบล่าสุด
+    if (willBePeriod) {
+      if (dateStr >= profile.lastPeriodStartDate) {
+        const hasExisting = cycleLogs.some((c) => c.startDate === dateStr);
+        if (!hasExisting) {
+          const newCycle: CycleLog = {
+            id: `cycle-${Date.now()}`,
+            startDate: dateStr,
+            endDate: undefined,
+          };
+          const updatedCycles = saveCycleLog(newCycle);
+          setCycleLogs(updatedCycles);
+        }
+        handleUpdateProfile({
+          ...profile,
+          lastPeriodStartDate: dateStr,
+        });
+      }
     }
   };
 
@@ -229,6 +291,7 @@ export default function Home() {
               log={dailyLogs[selectedDate]}
               profile={profile}
               onOpenLogModal={(dateStr) => handleOpenLogModal(dateStr)}
+              onTogglePeriod={handleTogglePeriodForDate}
             />
           </div>
         </div>
